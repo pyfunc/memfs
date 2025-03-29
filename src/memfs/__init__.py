@@ -8,7 +8,7 @@ memfs implements a virtual file system in memory. This module provides an interf
 # Avoid importing components directly to prevent circular imports
 from memfs.memfs import create_fs, MemoryFS
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 __version_tuple__ = (0, 1, 1, 'dev1', 'g4306cca.d20241124')
 
 __all__ = ["create_fs", "MemoryFS"]
