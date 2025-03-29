@@ -30,7 +30,6 @@ Or install from source:
 ```bash
 git clone https://github.com/pyfunc/memfs.git
 cd memfs
-pip install -e .
 ```
 
 For development setup:
@@ -306,6 +305,15 @@ memfs> touch /data/hello.txt
 memfs> write /data/hello.txt "Hello from shell mode!"
 memfs> tree /
 memfs> exit
+```
+
+### CLI State Management
+```
+mkdir -p /data
+touch /data/hello.txt
+write /data/hello.txt "Hello from shell mode!"
+tree /
+exit
 ```
 
 ### CLI State Management
