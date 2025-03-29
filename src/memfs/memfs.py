@@ -1,18 +1,14 @@
-def create_fs():
-    """Tworzy i zwraca instancję wirtualnego systemu plików."""
-    return MemoryFS()
-    """
+"""
 Moduł memfs implementuje wirtualny system plików w pamięci.
 Ten moduł zapewnia interfejs zgodny z modułem os i zapewnia operacje
 na plikach i katalogach przechowywanych w pamięci RAM, a nie na dysku.
 """
 
-
 import os
 import io
 import posixpath
 from io import StringIO, BytesIO
-from typing import Dict, List, Union, Optional, Any, BinaryIO, TextIO
+from typing import Dict, List, Union, Optional, Any, BinaryIO, TextIO, Set
 
 
 class MemoryPath:
@@ -58,7 +54,7 @@ class MemoryPath:
 
 
 # Inicjalizacja struktury danych dla wirtualnego systemu plików
-_FS_DATA = {
+_FS_DATA: Dict[str, Union[Dict[str, Union[str, bytes]], Set[str]]] = {
     'files': {},  # Pliki: ścieżka -> zawartość
     'dirs': {'/'}  # Katalogi: zbiór ścieżek
 }
@@ -404,3 +400,8 @@ class MemoryFS:
     def writefilebytes(self, path: str, data: bytes) -> None:
         """Zapisuje bytes do pliku."""
         self.writefile(path, data)
+
+
+def create_fs():
+    """Tworzy i zwraca instancję wirtualnego systemu plików."""
+    return MemoryFS()

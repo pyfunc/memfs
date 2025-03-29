@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.3] - 2025-03-29
+
+### Added
+- Changes in src/memfs/api.py
+- Changes in src/memfs/cli.py
+
 ## [0.1.2] - 2025-03-29
 
 ### Added

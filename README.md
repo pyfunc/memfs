@@ -1,79 +1,128 @@
 # memfs
-Moduł memfs implementuje wirtualny system plików w pamięci. Ten moduł zapewnia interfejs zgodny z modułem os i zapewnia operacje na plikach i katalogach przechowywanych w pamięci RAM, a nie na dysku.
 
+A Python module that implements a virtual file system in memory.
+This module provides an interface compatible with the standard `os` module and enables operations on files and directories stored in RAM rather than on disk.
 
-# Modularny Framework Pipeline z Wirtualnym Systemem Plików
+## Overview
 
-Ten projekt implementuje modularny framework pipeline z automatycznym generowaniem usług gRPC w Pythonie, używając wirtualnego systemu plików w pamięci RAM zamiast operacji na dysku fizycznym.
+`memfs` is designed to provide a fast, isolated file system environment for applications that need temporary file operations without the overhead of disk I/O. It's particularly useful for testing, data processing pipelines, and applications that need to manipulate files without affecting the host system.
 
-## Główne funkcje
+## Features
 
-- Tworzenie dynamicznych komponentów przetwarzania
-- Automatyczne generowanie definicji protokołu gRPC
-- Kompilacja kodu gRPC
-- Orkiestracja komponentów pipeline
-- Wirtualny system plików w pamięci RAM
-- Przykładowe komponenty transformacji (JSON → HTML → PDF)
+- Complete in-memory file system implementation
+- API compatible with Python's standard `os` module
+- File and directory operations (create, read, write, delete, rename)
+- Path manipulation and traversal
+- File-like objects with context manager support
+- No disk I/O overhead
+- Isolated from the host file system
 
-## Struktura projektu
-
-- `memfs.py` - implementacja wirtualnego systemu plików w pamięci
-- `api_framework.py` - główny kod frameworka z integracją memfs
-- `requirements.txt` - zależności projektu
-
-## Wirtualny system plików (memfs)
-
-Zamiast tradycyjnego zapisywania plików na dysku, projekt używa wirtualnego systemu plików w pamięci, co zapewnia:
-
-- Szybszy dostęp do plików (brak operacji I/O na dysku)
-- Tymczasowe przechowywanie danych bez zajmowania miejsca na dysku
-- Izolację od systemu plików hosta
-- Możliwość symulacji różnych struktur katalogów
-
-## Instalacja
-
-1. Sklonuj repozytorium
-2. Zainstaluj zależności:
+## Installation
 
 ```bash
-pip install -r requirements.txt
+pip install memfs
 ```
 
-## Przykład użycia
+Or install from source:
+
+```bash
+git clone https://github.com/pyfunc/memfs.git
+cd memfs
+pip install -e .
+```
+
+## Usage Examples
+
+### Basic File Operations
 
 ```python
-from api_framework import DynamicgRPCComponent, PipelineOrchestrator, example_usage
+from memfs.memfs import MemoryFS
 
-# Uruchom przykład
-example_usage()
+# Create a file system instance
+fs = MemoryFS()
+
+# Write to a file
+fs.writefile('/hello.txt', 'Hello, world!')
+
+# Read from a file
+content = fs.readfile('/hello.txt')
+print(content)  # Outputs: Hello, world!
+
+# Check if a file exists
+if fs.exists('/hello.txt'):
+    print('File exists!')
+
+# Create directories
+fs.makedirs('/path/to/directory')
+
+# List directory contents
+files = fs.listdir('/path/to')
 ```
 
-## Komponenty
+### Using File-Like Objects
 
-### ApiFuncFramework
+```python
+from memfs.memfs import MemoryFS
 
-Framework do tworzenia usług gRPC z funkcji Python.
+fs = MemoryFS()
 
-### DynamicgRPCComponent
+# Write using a file-like object
+with fs.open('/data.txt', 'w') as f:
+    f.write('Line 1\n')
+    f.write('Line 2\n')
 
-Komponent pipeline z dynamicznym interfejsem gRPC.
+# Read using a file-like object
+with fs.open('/data.txt', 'r') as f:
+    for line in f:
+        print(line.strip())
+```
 
-### PipelineOrchestrator
+### Directory Operations
 
-Orkiestrator pipeline, który zarządza komponentami i przepływem danych.
+```python
+from memfs.memfs import MemoryFS
 
-### Moduł memfs
+fs = MemoryFS()
 
-Implementacja wirtualnego systemu plików w pamięci.
+# Create nested directories
+fs.makedirs('/a/b/c')
 
-## Przejście z fizycznego na wirtualny system plików
+# Walk the directory tree
+for root, dirs, files in fs.walk('/'):
+    print(f"Directory: {root}")
+    print(f"Subdirectories: {dirs}")
+    print(f"Files: {files}")
+```
 
-Główne zmiany w porównaniu do wersji używającej fizycznego systemu plików:
+## API Reference
 
-1. Operacje na systemie plików używają teraz `fs` zamiast `os`
-2. Ścieżki są względne do korzenia wirtualnego systemu plików (`/`)
-3. Dane są przechowywane w pamięci RAM, nie na dysku
-4. Dodano logikę do tymczasowego kopiowania plików na dysk fizyczny podczas kompilacji proto (wymagane przez gRPC)
+The `MemoryFS` class provides the following methods:
 
-## Licencja
+- `open(path, mode)` - Open a file and return a file-like object
+- `exists(path)` - Check if a path exists
+- `isfile(path)` - Check if a path is a file
+- `isdir(path)` - Check if a path is a directory
+- `listdir(path)` - List contents of a directory
+- `mkdir(path)` - Create a directory
+- `makedirs(path, exist_ok=False)` - Create directories recursively
+- `remove(path)` - Remove a file
+- `rmdir(path)` - Remove an empty directory
+- `rename(src, dst)` - Rename a file or directory
+- `readfile(path)` - Read a file's contents as a string
+- `writefile(path, content)` - Write content to a file
+- `readfilebytes(path)` - Read a file's contents as bytes
+- `writefilebytes(path, content)` - Write binary content to a file
+- `walk(path)` - Walk a directory tree (similar to os.walk)
+
+## Use Cases
+
+- Unit testing file operations without touching the disk
+- Temporary data processing pipelines
+- Sandboxed environments
+- Mock file systems for testing
+- Fast data manipulation without disk I/O overhead
+
+## License
+
+Apache-2.0
 
