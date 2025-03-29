@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.5] - 2025-03-29
+
+### Added
+- Changes in examples/advanced.py
+- Changes in examples/basic.py
+- Changes in tests/__init__.py
+- Changes in tests/test_api.py
+
 ## [0.1.4] - 2025-03-29
 
 ## [0.1.3] - 2025-03-29
