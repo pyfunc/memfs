@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.2] - 2025-03-29
+
+### Added
+- Changes in src/memfs/__init__.py
+- Changes in src/memfs/_version.py
+- Changes in src/memfs/memfs.py
+- Changes in tests/test_memfs.py
+
 ## [0.1.1] - 2025-03-29
 
 ### Added
