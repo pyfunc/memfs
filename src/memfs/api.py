@@ -262,8 +262,8 @@ def example_usage(output_file: str = 'raport.pdf'):
             thread.join()
         logger.info("All services have been shut down.")
         """
-Moduł api implementuje framework dla funkcji API z wirtualnym systemem plików.
-"""
+        Moduł api implementuje framework dla funkcji API z wirtualnym systemem plików.
+        """
 
 
 import sys

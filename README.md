@@ -23,11 +23,44 @@ A Python module that implements a virtual file system in memory. This module pro
 pip install memfs
 ```
 
+
 Or install from source:
+
 
 ```bash
 git clone https://github.com/pyfunc/memfs.git
 cd memfs
+pip install -e .
+```
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate  # On Linux/macOS
+#.venv\Scripts\activate  # On Windows
+pip install -e .
+python -m build
+```
+
+```bash
+# Deactivate current venv
+deactivate
+
+# Remove the existing venv
+rm -rf .venv
+
+# Create a fresh venv
+python -m venv .venv
+
+# Activate it
+source .venv/bin/activate
+
+pip install --upgrade pip
+
+
+# Install setuptools first
+pip install setuptools wheel
+
+# Then try installing your package
 pip install -e .
 ```
 

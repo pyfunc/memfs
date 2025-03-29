@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.6] - 2025-03-29
+
+### Added
+- Changes in examples/custom.py
+- Changes in examples/testing_with_memfs.py
+- Changes in examples/webapp.py
+- Changes in pyproject.toml
+
 ## [0.1.5] - 2025-03-29
 
 ### Added
