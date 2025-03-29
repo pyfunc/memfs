@@ -294,25 +294,27 @@ class MemoryFS:
         dirs = []
         files = []
 
-        # Normalizacja ścieżki
-        if not top.endswith('/') and top != '/':
-            top += '/'
+        # Normalizacja ścieżki dla wewnętrznego użytku
+        top_with_slash = top
+        if not top_with_slash.endswith('/') and top_with_slash != '/':
+            top_with_slash += '/'
 
-        top_len = len(top) if top != '/' else 1
+        top_len = len(top_with_slash) if top_with_slash != '/' else 1
 
         # Znajdź bezpośrednie elementy w katalogu
         for dir_path in _FS_DATA['dirs']:
-            if dir_path != top and dir_path.startswith(top):
+            if dir_path != top_with_slash and dir_path.startswith(top_with_slash):
                 rel_path = dir_path[top_len:]
                 if '/' not in rel_path:  # Tylko bezpośrednie podkatalogi
                     dirs.append(self.path.basename(dir_path))
 
         for file_path in _FS_DATA['files']:
-            if file_path.startswith(top):
+            if file_path.startswith(top_with_slash):
                 rel_path = file_path[top_len:]
                 if '/' not in rel_path:  # Tylko bezpośrednie pliki
                     files.append(self.path.basename(file_path))
 
+        # Zwróć ścieżkę bez końcowego ukośnika (zgodnie z oczekiwaniami testów)
         yield top, dirs, files
 
         # Rekurencyjnie przejdź przez podkatalogi
