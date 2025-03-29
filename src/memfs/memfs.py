@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# src/memfs/memfs.py
+
 """
 Moduł memfs implementuje wirtualny system plików w pamięci.
 Ten moduł zapewnia interfejs zgodny z modułem os i zapewnia operacje
@@ -287,7 +290,7 @@ class MemoryFS:
     def walk(self, top: str):
         """
         Przechodzi przez katalogi rekurencyjnie, zgodnie z os.walk.
-        
+
         Zwraca krotki (root, dirs, files) dla każdego katalogu w drzewie katalogów,
         zaczynając od top (włącznie).
         """
@@ -296,60 +299,41 @@ class MemoryFS:
         if not self.isdir(top):
             raise NotADirectoryError(f"Nie jest katalogiem: {top}")
 
-        # Implementacja zgodna z oczekiwanym porządkiem w testach
-        # Najpierw zbieramy wszystkie ścieżki i sortujemy je
-        all_paths = []
-        
-        # Dodaj główny katalog
-        all_paths.append(top)
-        
-        # Dodaj wszystkie podkatalogi
-        top_with_slash = top
-        if not top_with_slash.endswith('/') and top_with_slash != '/':
-            top_with_slash += '/'
-            
-        top_len = len(top_with_slash) if top_with_slash != '/' else 1
-        
-        # Zbierz wszystkie podkatalogi
-        subdirs = []
+        # Najpierw wygeneruj wyniki dla głównego katalogu
+        dirs = []
+        files = []
+
+        # Normalizacja ścieżki
+        path_with_slash = top
+        if not path_with_slash.endswith('/') and path_with_slash != '/':
+            path_with_slash += '/'
+
+        path_len = len(path_with_slash) if path_with_slash != '/' else 1
+
+        # Znajdź bezpośrednie elementy w katalogu
         for dir_path in _FS_DATA['dirs']:
-            if dir_path != top and dir_path.startswith(top_with_slash):
-                subdirs.append(dir_path)
-                
-        # Sortuj podkatalogi według głębokości (najpierw płytsze)
-        subdirs.sort(key=lambda p: p.count('/'))
-        all_paths.extend(subdirs)
-        
-        # Teraz przetwarzaj każdą ścieżkę
-        for path in all_paths:
-            dirs = []
-            files = []
-            
-            # Normalizacja ścieżki dla wewnętrznego użytku
-            path_with_slash = path
-            if not path_with_slash.endswith('/') and path_with_slash != '/':
-                path_with_slash += '/'
-                
-            path_len = len(path_with_slash) if path_with_slash != '/' else 1
-            
-            # Znajdź bezpośrednie elementy w katalogu
-            for dir_path in _FS_DATA['dirs']:
-                if dir_path != path and dir_path.startswith(path_with_slash):
-                    rel_path = dir_path[path_len:]
-                    if '/' not in rel_path:  # Tylko bezpośrednie podkatalogi
-                        dirs.append(self.path.basename(dir_path))
-            
-            for file_path in _FS_DATA['files']:
-                if file_path.startswith(path_with_slash):
-                    rel_path = file_path[path_len:]
-                    if '/' not in rel_path:  # Tylko bezpośrednie pliki
-                        files.append(self.path.basename(file_path))
-            
-            # Sortuj listy dla spójności
-            dirs.sort()
-            files.sort()
-            
-            yield path, dirs, files
+            if dir_path != top and dir_path.startswith(path_with_slash):
+                rel_path = dir_path[path_len:]
+                if '/' not in rel_path:  # Tylko bezpośrednie podkatalogi
+                    dirs.append(self.path.basename(dir_path))
+
+        for file_path in _FS_DATA['files']:
+            if file_path.startswith(path_with_slash):
+                rel_path = file_path[path_len:]
+                if '/' not in rel_path:  # Tylko bezpośrednie pliki
+                    files.append(self.path.basename(file_path))
+
+        # Sortuj listy dla spójności
+        dirs.sort()
+        files.sort()
+
+        # Zwróć wyniki dla głównego katalogu
+        yield top, dirs, files
+
+        # Potem rekurencyjnie przejdź przez podkatalogi
+        for d in dirs:
+            dir_path = self.path.join(top, d)
+            yield from self.walk(dir_path)
 
     def rename(self, src: str, dst: str) -> None:
         """Zmienia nazwę pliku lub katalogu."""

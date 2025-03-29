@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.7] - 2025-03-29
+
+### Added
+- Changes in examples/cli.py
+- Changes in src/memfs/cli_with_shell.py
+
 ## [0.1.6] - 2025-03-29
 
 ### Added

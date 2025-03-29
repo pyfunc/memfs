@@ -1,12 +1,15 @@
 #!/usr/bin/env python
 """
-Command-line interface for the memfs virtual filesystem with state persistence.
+Command-line interface for the memfs virtual filesystem with state persistence and shell mode.
 """
 
 import argparse
 import sys
 import json
 import os
+import base64
+import cmd
+import readline
 from memfs import create_fs, __version__
 from memfs.memfs import _FS_DATA  # Importujemy bezpośrednio strukturę danych
 
@@ -25,7 +28,6 @@ def save_state():
     for path, content in _FS_DATA['files'].items():
         if isinstance(content, bytes):
             # Dla plików binarnych używamy base64
-            import base64
             state['files'][path] = {
                 'type': 'binary',
                 'content': base64.b64encode(content).decode('ascii')
@@ -35,6 +37,9 @@ def save_state():
                 'type': 'text',
                 'content': content
             }
+
+    # Upewnij się, że katalog istnieje
+    os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
 
     with open(STATE_FILE, 'w') as f:
         json.dump(state, f)
@@ -54,16 +59,15 @@ def load_state():
         _FS_DATA['dirs'] = {'/'}
 
         # Załaduj katalogi
-        for dir_path in state['dirs']:
+        for dir_path in state.get('dirs', []):
             _FS_DATA['dirs'].add(dir_path)
 
         # Załaduj pliki
-        for path, file_info in state['files'].items():
-            if file_info['type'] == 'binary':
-                import base64
+        for path, file_info in state.get('files', {}).items():
+            if file_info.get('type') == 'binary':
                 _FS_DATA['files'][path] = base64.b64decode(file_info['content'])
             else:
-                _FS_DATA['files'][path] = file_info['content']
+                _FS_DATA['files'][path] = file_info.get('content', '')
 
         return True
     except (json.JSONDecodeError, KeyError) as e:
@@ -115,10 +119,201 @@ def dump_fs(fs, path):
     return result
 
 
+class MemfsShell(cmd.Cmd):
+    """Interactive shell for memfs."""
+
+    intro = "memfs shell. Type help or ? to list commands.\n"
+    prompt = "memfs> "
+
+    def __init__(self):
+        super().__init__()
+        # Load existing state or create a new filesystem
+        load_state()
+        self.fs = create_fs()
+
+    def do_exit(self, arg):
+        """Exit the shell."""
+        print("Goodbye!")
+        save_state()
+        return True
+
+    def do_quit(self, arg):
+        """Exit the shell (alias for exit)."""
+        return self.do_exit(arg)
+
+    def do_tree(self, arg):
+        """Display filesystem as a tree."""
+        path = arg.strip() or '/'
+        print_tree(self.fs, path)
+
+    def do_touch(self, arg):
+        """Create an empty file."""
+        if not arg:
+            print("Error: Path required")
+            return
+
+        try:
+            with self.fs.open(arg, 'w') as f:
+                pass
+            print(f"Created file: {arg}")
+            save_state()
+        except Exception as e:
+            print(f"Error: {e}")
+
+    def do_mkdir(self, arg):
+        """Create a directory. Use -p to create parent directories."""
+        if not arg:
+            print("Error: Path required")
+            return
+
+        args = arg.split()
+        create_parents = False
+
+        if '-p' in args:
+            create_parents = True
+            args.remove('-p')
+
+        if not args:
+            print("Error: Path required")
+            return
+
+        path = args[0]
+
+        try:
+            if create_parents:
+                self.fs.makedirs(path, exist_ok=True)
+            else:
+                self.fs.mkdir(path)
+            print(f"Created directory: {path}")
+            save_state()
+        except Exception as e:
+            print(f"Error: {e}")
+
+    def do_write(self, arg):
+        """Write content to a file."""
+        args = arg.split(maxsplit=1)
+
+        if len(args) < 2:
+            print("Error: Both path and content required")
+            return
+
+        path, content = args
+
+        try:
+            with self.fs.open(path, 'w') as f:
+                f.write(content)
+            print(f"Wrote to: {path}")
+            save_state()
+        except Exception as e:
+            print(f"Error: {e}")
+
+    def do_read(self, arg):
+        """Read content from a file."""
+        if not arg:
+            print("Error: Path required")
+            return
+
+        try:
+            with self.fs.open(arg, 'r') as f:
+                content = f.read()
+            print(content)
+        except Exception as e:
+            print(f"Error: {e}")
+
+    def do_dump(self, arg):
+        """Dump filesystem to JSON."""
+        path = arg.strip() or '/'
+
+        try:
+            data = dump_fs(self.fs, path)
+            print(json.dumps(data, indent=2))
+        except Exception as e:
+            print(f"Error: {e}")
+
+    def do_ls(self, arg):
+        """List directory contents."""
+        path = arg.strip() or '/'
+
+        try:
+            contents = self.fs.listdir(path)
+
+            for item in sorted(contents):
+                item_path = self.fs.path.join(path, item)
+                if self.fs.isdir(item_path):
+                    print(f"{item}/")
+                else:
+                    print(item)
+        except Exception as e:
+            print(f"Error: {e}")
+
+    def do_rm(self, arg):
+        """Remove a file."""
+        if not arg:
+            print("Error: Path required")
+            return
+
+        try:
+            self.fs.remove(arg)
+            print(f"Removed file: {arg}")
+            save_state()
+        except Exception as e:
+            print(f"Error: {e}")
+
+    def do_rmdir(self, arg):
+        """Remove an empty directory."""
+        if not arg:
+            print("Error: Path required")
+            return
+
+        try:
+            self.fs.rmdir(arg)
+            print(f"Removed directory: {arg}")
+            save_state()
+        except Exception as e:
+            print(f"Error: {e}")
+
+    def do_rename(self, arg):
+        """Rename a file or directory."""
+        args = arg.split()
+
+        if len(args) != 2:
+            print("Error: Both source and destination paths required")
+            return
+
+        src, dst = args
+
+        try:
+            self.fs.rename(src, dst)
+            print(f"Renamed {src} to {dst}")
+            save_state()
+        except Exception as e:
+            print(f"Error: {e}")
+
+    def do_init(self, arg):
+        """Initialize a new filesystem (clear all data)."""
+        global _FS_DATA
+        _FS_DATA['files'] = {}
+        _FS_DATA['dirs'] = {'/'}
+        print("Initialized new filesystem")
+        save_state()
+
+    def do_cat(self, arg):
+        """Cat a file (alias for read)."""
+        return self.do_read(arg)
+
+    def default(self, line):
+        """Handle unknown commands."""
+        print(f"Unknown command: {line.split()[0]}")
+        print("Type 'help' for a list of commands.")
+
+
 def main():
     """Main CLI function."""
     parser = argparse.ArgumentParser(description="memfs - Virtual Filesystem in Memory")
     parser.add_argument('--version', action='version', version=f'memfs {__version__}')
+
+    # Shell mode
+    parser.add_argument('--shell', action='store_true', help='Start interactive shell')
 
     subparsers = parser.add_subparsers(dest='command', help='Command')
 
@@ -151,13 +346,25 @@ def main():
     dump_parser = subparsers.add_parser('dump', help='Dump filesystem to JSON')
     dump_parser.add_argument('path', nargs='?', default='/', help='Root path to dump')
 
+    # Shell command
+    shell_parser = subparsers.add_parser('shell', help='Start interactive shell')
+
     args = parser.parse_args()
+
+    # Handle shell mode
+    if args.shell or args.command == 'shell':
+        try:
+            MemfsShell().cmdloop()
+            return 0
+        except KeyboardInterrupt:
+            print("\nExiting...")
+            return 0
 
     # Handle init command specially
     if args.command == 'init':
         # Create a new filesystem
-        os.remove(STATE_FILE) if os.path.exists(STATE_FILE) else None
-        fs = create_fs()
+        _FS_DATA['files'] = {}
+        _FS_DATA['dirs'] = {'/'}
         save_state()
         print("Initialized new filesystem")
         return 0
@@ -176,6 +383,7 @@ def main():
             with fs.open(args.path, 'w') as f:
                 pass
             print(f"Created file: {args.path}")
+            save_state()
 
         elif args.command == 'mkdir':
             if args.parents:
@@ -183,11 +391,13 @@ def main():
             else:
                 fs.mkdir(args.path)
             print(f"Created directory: {args.path}")
+            save_state()
 
         elif args.command == 'write':
             with fs.open(args.path, 'w') as f:
                 f.write(args.content)
             print(f"Wrote to: {args.path}")
+            save_state()
 
         elif args.command == 'read':
             with fs.open(args.path, 'r') as f:
@@ -202,8 +412,6 @@ def main():
             parser.print_help()
             return 1
 
-        # Save state after successful command
-        save_state()
         return 0
 
     except Exception as e:

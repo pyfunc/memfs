@@ -14,6 +14,8 @@ A Python module that implements a virtual file system in memory. This module pro
 - Path manipulation and traversal
 - File-like objects with context manager support
 - gRPC service generation for pipeline components
+- Encryption and compression support via extended filesystem
+- State persistence between CLI invocations
 - No disk I/O overhead
 - Isolated from the host file system
 
@@ -23,9 +25,7 @@ A Python module that implements a virtual file system in memory. This module pro
 pip install memfs
 ```
 
-
 Or install from source:
-
 
 ```bash
 git clone https://github.com/pyfunc/memfs.git
@@ -33,35 +33,21 @@ cd memfs
 pip install -e .
 ```
 
+For development setup:
+
 ```bash
+# Create a virtual environment
 python3 -m venv .venv
 source .venv/bin/activate  # On Linux/macOS
-#.venv\Scripts\activate  # On Windows
-pip install -e .
-python -m build
-```
+# .venv\Scripts\activate  # On Windows
 
-```bash
-# Deactivate current venv
-deactivate
-
-# Remove the existing venv
-rm -rf .venv
-
-# Create a fresh venv
-python -m venv .venv
-
-# Activate it
-source .venv/bin/activate
-
+# Install in development mode
 pip install --upgrade pip
-
-
-# Install setuptools first
 pip install setuptools wheel
-
-# Then try installing your package
 pip install -e .
+
+# Build the package
+python -m build
 ```
 
 ## Basic Usage Examples
@@ -200,6 +186,33 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
         print(f"Processed file ID: {file_id}")
 ```
 
+### Encrypted and Compressed Files
+
+```python
+from memfs.examples.custom_filesystem import create_extended_fs
+
+# Create extended filesystem with encryption and compression
+fs = create_extended_fs()
+
+# Write to an encrypted file
+with fs.open_encrypted('/secret.txt', 'w', password='mysecret') as f:
+    f.write('This is sensitive information')
+
+# Read from an encrypted file
+with fs.open_encrypted('/secret.txt', 'r', password='mysecret') as f:
+    content = f.read()
+    print(content)
+
+# Write to a compressed file (good for large text)
+with fs.open_compressed('/compressed.txt', 'w', compression_level=9) as f:
+    f.write('This content will be compressed ' * 1000)
+
+# Check the file sizes
+normal_size = len(fs.readfile('/secret.txt'))
+compressed_size = len(fs._FS_DATA['files']['/compressed.txt'])
+print(f"Compression ratio: {normal_size / compressed_size:.2f}x")
+```
+
 ### gRPC Service Pipeline
 
 ```python
@@ -250,17 +263,22 @@ print(result)  # {"input": "data", "transformed": true, "formatted": true}
 
 ## Command-line Interface
 
-`memfs` provides a command-line interface for basic file operations:
+`memfs` provides a command-line interface for basic file operations. The CLI maintains state between invocations by default, storing filesystem data in `~/.memfs_state.json`.
+
+### Basic CLI Usage
 
 ```bash
+# Initialize a new filesystem (clears any existing state)
+memfs init
+
 # Display filesystem as a tree
 memfs tree /
 
+# Create a directory with parents
+memfs mkdir -p /data/subdir
+
 # Create an empty file
 memfs touch /data/hello.txt
-
-# Create directories
-memfs mkdir -p /data/subdir
 
 # Write content to a file
 memfs write /data/hello.txt "Hello, virtual world!"
@@ -272,28 +290,85 @@ memfs read /data/hello.txt
 memfs dump
 ```
 
-## API Reference
+### Interactive Shell Mode
+
+For a more interactive experience, you can use the shell mode:
+
+```bash
+memfs shell
+```
+
+This launches an interactive shell where you can run multiple commands without restarting the CLI:
+
+```
+memfs> mkdir -p /data
+memfs> touch /data/hello.txt
+memfs> write /data/hello.txt "Hello from shell mode!"
+memfs> tree /
+memfs> exit
+```
+
+### CLI State Management
+
+The CLI stores state in `~/.memfs_state.json`. If you're experiencing issues with state persistence:
+
+```bash
+# Check if state file exists
+ls -la ~/.memfs_state.json
+
+# Reset state by initializing a new filesystem
+memfs init
+
+# Or manually create an empty state file
+echo '{"files": {}, "dirs": ["/"]}' > ~/.memfs_state.json
+```
+
+### Creating a Custom CLI Command
+
+You can create a custom script to use memfs in a single process:
+
+```python
+#!/usr/bin/env python
+from memfs import create_fs
+
+fs = create_fs()
+fs.makedirs('/data', exist_ok=True)
+fs.writefile('/data/hello.txt', 'Hello, world!')
+
+print("Filesystem contents:")
+for root, dirs, files in fs.walk('/'):
+    print(f"Directory: {root}")
+    for d in dirs:
+        print(f"  Dir: {d}")
+    for f in files:
+        print(f"  File: {f}")
+```
+
+## Project Structure
+
 ```
 memfs/
-├── setup.py          # Plik instalacyjny setuptools
-├── setup.cfg         # Konfiguracja setuptools
-├── README.md         # Dokumentacja projektu
-├── src/              # Kod źródłowy
-│   └── memfs/        # Pakiet główny
-│       ├── __init__.py     # Import podstawowych komponentów
-│       ├── _version.py     # Informacje o wersji
-│       ├── memfs.py        # Implementacja wirtualnego systemu plików
-│       ├── api.py          # Moduł do generowania usług gRPC
-│       └── cli.py          # Interfejs wiersza poleceń
-├── tests/            # Testy jednostkowe
+├── setup.py          # Package installation configuration
+├── setup.cfg         # Setup configuration
+├── README.md         # Project documentation
+├── src/              # Source code
+│   └── memfs/        # Main package
+│       ├── __init__.py     # Basic component imports
+│       ├── _version.py     # Version information
+│       ├── memfs.py        # Virtual filesystem implementation
+│       ├── api.py          # gRPC service generation module
+│       └── cli.py          # Command-line interface
+├── tests/            # Unit tests
 │   ├── __init__.py
-│   ├── test_memfs.py       # Testy dla modułu memfs
-│   └── test_api.py         # Testy dla modułu API
-└── examples/         # Przykłady użycia
-    ├── basic_usage.py      # Podstawowe operacje
-    └── advanced_usage.py   # Zaawansowane scenariusze
+│   ├── test_memfs.py       # Tests for memfs module
+│   └── test_api.py         # Tests for API module
+└── examples/         # Usage examples
+    ├── basic_usage.py      # Basic operations
+    └── advanced_usage.py   # Advanced scenarios
 ```
-     
+
+## API Reference
+
 ### MemoryFS Class
 
 - `open(path, mode='r')` - Open a file
@@ -312,6 +387,16 @@ memfs/
 - `readfilebytes(path)` - Read a file's contents as bytes
 - `writefilebytes(path, data)` - Write binary content to a file
 
+### Extended MemoryFS Class
+
+- `open_encrypted(path, mode='r', password='')` - Open an encrypted file
+- `open_compressed(path, mode='r', compression_level=9)` - Open a compressed file
+- `set_metadata(path, metadata)` - Set metadata for a file
+- `get_metadata(path)` - Get metadata for a file
+- `find(pattern, start_path='/')` - Find files matching a pattern
+- `search_content(text, extensions=None, start_path='/')` - Search for files containing text
+- `backup(path, backup_dir='/backup')` - Create a backup of a file or directory
+
 ### API Module
 
 - `DynamicgRPCComponent` - Create a gRPC service from a function
@@ -326,6 +411,7 @@ memfs/
 - **Microservices** - Create gRPC services from Python functions
 - **Sandboxed environments** - Run file operations in an isolated environment
 - **Performance optimization** - Avoid disk I/O overhead for temporary operations
+- **Secure storage** - Encrypt sensitive data in memory
 - **Containerized applications** - Reduce container size by using in-memory storage
 
 ## License

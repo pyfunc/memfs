@@ -1,3 +1,32 @@
+#!/usr/bin/env python
+# src/memfs/api.py
+
+"""
+Moduł api implementuje framework dla funkcji API z wirtualnym systemem plików.
+"""
+
+import sys
+import inspect
+import importlib
+import json
+from typing import Any, Dict, List, Optional, Callable, Type
+import os
+import tempfile
+
+import logging
+import grpc
+from concurrent import futures
+import grpc_tools.protoc
+from google.protobuf.struct_pb2 import Struct
+import google.protobuf
+import time
+import threading
+
+from memfs import create_fs
+
+# Tworzymy wirtualny system plików - dostępny dla wszystkich użytkowników modułu
+fs = create_fs()
+
 class DynamicgRPCComponent:
     """
     Dynamic gRPC component for the pipeline.

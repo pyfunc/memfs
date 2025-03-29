@@ -10,16 +10,20 @@ import time
 import tempfile
 import grpc
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, mock_open
 from google.protobuf.struct_pb2 import Struct
 
 from memfs.api import (
     ApiFuncConfig,
     ApiFuncFramework,
     DynamicgRPCComponent,
-    PipelineOrchestrator,
-    fs
+    PipelineOrchestrator
 )
+from memfs.memfs import _FS_DATA  # Import directly from memfs.memfs
+from memfs import create_fs
+
+# Create a filesystem instance for tests
+fs = create_fs()
 
 
 def simple_transform(data):
@@ -29,14 +33,15 @@ def simple_transform(data):
     return data
 
 
-def test_data_to_upper(data):
+# Fix fixture issue by making these regular functions instead of test functions
+def data_to_upper(data):
     """Convert all string values in a dict to uppercase."""
     if isinstance(data, dict):
-        return {k: v.upper() if isinstance(v, str) else v for k, v in data.items()}
+        return {k.upper(): v.upper() if isinstance(v, str) else v for k, v in data.items()}
     return data
 
 
-def test_add_prefix(data):
+def add_prefix(data):
     """Add prefix to all string values in a dict."""
     if isinstance(data, dict):
         return {k: f"PREFIX_{v}" if isinstance(v, str) else v for k, v in data.items()}
@@ -71,12 +76,12 @@ class TestApiFuncFramework:
     def setup_method(self):
         """Set up test environment."""
         # Reset the filesystem state
-        for key in list(fs._FS_DATA['files'].keys()):
-            del fs._FS_DATA['files'][key]
+        for key in list(_FS_DATA['files'].keys()):
+            del _FS_DATA['files'][key]
 
-        for key in list(fs._FS_DATA['dirs']):
+        for key in list(_FS_DATA['dirs']):
             if key != '/':
-                fs._FS_DATA['dirs'].remove(key)
+                _FS_DATA['dirs'].remove(key)
 
         self.config = ApiFuncConfig()
         self.framework = ApiFuncFramework(self.config)
@@ -86,10 +91,13 @@ class TestApiFuncFramework:
         fs.makedirs(self.generated_dir, exist_ok=True)
 
     @patch('memfs.api.grpc_tools.protoc.main')
-    def test_register_function(self, mock_protoc):
+    @patch('os.path.exists')
+    @patch('builtins.open', new_callable=mock_open, read_data="# Mock generated content")
+    def test_register_function(self, mock_file, mock_exists, mock_protoc):
         """Test registering a function."""
-        # Mock the protoc main function to avoid actual compilation
+        # Mock protoc and file operations
         mock_protoc.return_value = 0
+        mock_exists.return_value = True  # Simulate files existing
 
         # Test registering a function
         self.framework.register_function(simple_transform, self.proto_dir, self.generated_dir)
@@ -108,38 +116,40 @@ class TestApiFuncFramework:
             assert "rpc Transform" in content
 
     @patch('memfs.api.grpc_tools.protoc.main')
+    @patch('os.path.exists')
+    @patch('builtins.open', new_callable=mock_open, read_data="# Mock generated content")
     @patch('memfs.api.grpc.server')
-    def test_start_server(self, mock_server, mock_protoc):
+    @patch('memfs.api.importlib.util.spec_from_file_location')
+    @patch('memfs.api.importlib.util.module_from_spec')
+    def test_start_server(self, mock_module_from_spec, mock_spec_from_file, mock_server,
+                          mock_file, mock_exists, mock_protoc):
         """Test starting a server."""
         # Setup mocks
         mock_protoc.return_value = 0
+        mock_exists.return_value = True  # Simulate files existing
+
         mock_server_instance = MagicMock()
         mock_server.return_value = mock_server_instance
+
+        # Setup module loading mocks
+        mock_spec_instance = MagicMock()
+        mock_spec_from_file.return_value = mock_spec_instance
+
+        mock_module_instance = MagicMock()
+        mock_module_instance.SimpleTransformServicer = type('SimpleTransformServicer', (), {})
+        mock_module_instance.add_SimpleTransformServicer_to_server = MagicMock()
+        mock_module_from_spec.return_value = mock_module_instance
 
         # Register and start server
         self.framework.register_function(simple_transform, self.proto_dir, self.generated_dir)
 
-        # Create temp py files to simulate generated modules
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # We need to patch importlib to mock the module import
-            with patch('memfs.api.importlib.util.spec_from_file_location') as mock_spec:
-                with patch('memfs.api.importlib.util.module_from_spec') as mock_module:
-                    # Setup mocks for module loading
-                    mock_spec_instance = MagicMock()
-                    mock_spec.return_value = mock_spec_instance
+        # Start server
+        server = self.framework.start_server(simple_transform, self.proto_dir, self.generated_dir, 50051)
 
-                    mock_module_instance = MagicMock()
-                    mock_module_instance.SimpleTransformServicer = type('SimpleTransformServicer', (), {})
-                    mock_module_instance.add_SimpleTransformServicer_to_server = MagicMock()
-                    mock_module.return_value = mock_module_instance
-
-                    # Start server
-                    server = self.framework.start_server(simple_transform, self.proto_dir, self.generated_dir, 50051)
-
-                    # Check that server was started
-                    assert server == mock_server_instance
-                    mock_server_instance.add_insecure_port.assert_called_once_with('[::]:{}'.format(50051))
-                    mock_server_instance.start.assert_called_once()
+        # Check that server was started
+        assert server == mock_server_instance
+        mock_server_instance.add_insecure_port.assert_called_once_with('[::]:{}'.format(50051))
+        mock_server_instance.start.assert_called_once()
 
 
 class TestDynamicgRPCComponent:
@@ -148,12 +158,12 @@ class TestDynamicgRPCComponent:
     def setup_method(self):
         """Set up test environment."""
         # Reset the filesystem state
-        for key in list(fs._FS_DATA['files'].keys()):
-            del fs._FS_DATA['files'][key]
+        for key in list(_FS_DATA['files'].keys()):
+            del _FS_DATA['files'][key]
 
-        for key in list(fs._FS_DATA['dirs']):
+        for key in list(_FS_DATA['dirs']):
             if key != '/':
-                fs._FS_DATA['dirs'].remove(key)
+                _FS_DATA['dirs'].remove(key)
 
         self.proto_dir = "/test_proto_component"
         self.generated_dir = "/test_generated_component"
@@ -231,10 +241,10 @@ class TestPipelineOrchestrator:
 
         # Create mocked components
         self.component1 = MagicMock()
-        self.component1.process.side_effect = test_data_to_upper
+        self.component1.process.side_effect = data_to_upper
 
         self.component2 = MagicMock()
-        self.component2.process.side_effect = test_add_prefix
+        self.component2.process.side_effect = add_prefix
 
     def test_add_component(self):
         """Test adding a component."""
